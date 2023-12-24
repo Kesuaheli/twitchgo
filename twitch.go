@@ -31,17 +31,19 @@ type Twitch struct {
 	token    string
 	username string
 	conn     net.Conn
-	events   map[MessageCommandName]struct {
-		msg func(t *Twitch, m *Message)
-	}
-	eventMu sync.Mutex
+	events   map[MessageCommandName][]interface{}
+	eventMu  sync.Mutex
 }
 
 type Message struct {
 	Raw     string
 	Tags    MessageTags
-	Source  string
+	Source  *User
 	Command MessageCommand
+}
+type User struct {
+	Nickname string
+	Host     string
 }
 
 type MessageCommand struct {
@@ -117,7 +119,7 @@ func New(username, token string) (t *Twitch) {
 	t = &Twitch{
 		token:    token,
 		username: username,
-		events:   make(map[MessageCommandName]struct{ msg func(t *Twitch, m *Message) }),
+		events:   make(map[MessageCommandName][]interface{}),
 	}
 	return t
 }

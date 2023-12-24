@@ -55,7 +55,12 @@ func (t *Twitch) parseMessage(raw string) *Message {
 
 	if raw[0] == ':' {
 		i := strings.Index(raw, " ")
-		m.Source = raw[1:i]
+		source := strings.Split(raw[1:i], "!")
+		if len(source) == 2 {
+			m.Source = &User{Nickname: source[0], Host: source[0]}
+		} else {
+			m.Source = &User{Host: source[0]}
+		}
 		raw = raw[i+1:]
 	}
 
@@ -78,9 +83,11 @@ func (m *Message) handle(t *Twitch) {
 		return
 	}
 
-	c := t.events[m.Command.Name]
-	if c.msg == nil {
+	handleCallback := callbackEventMap[m.Command.Name]
+	if handleCallback == nil {
 		return
 	}
-	c.msg(t, m)
+	for _, c := range t.events[m.Command.Name] {
+		handleCallback(t, m, c)
+	}
 }
