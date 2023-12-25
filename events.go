@@ -1,6 +1,6 @@
 package twitchgo
 
-var callbackEventMap map[MessageCommandName]func(t *Twitch, m *Message, c interface{})
+var callbackEventMap = make(map[MessageCommandName]func(t *Twitch, m *Message, c interface{}))
 
 // OnChannelJoin tells the bot to call the given callback function when a user joins a channel that
 // you (the bot) already joined.
