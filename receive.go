@@ -83,6 +83,12 @@ func (m *Message) handle(t *Twitch) {
 		return
 	}
 
+	// on ping commands only reply with a pong and exit the handler
+	if m.Command.Name == MsgCmdPing {
+		t.SendCommand(string(MsgCmdPong))
+		return
+	}
+
 	handleCallback := callbackEventMap[m.Command.Name]
 	if handleCallback == nil {
 		return
