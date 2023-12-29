@@ -1,5 +1,9 @@
 package twitchgo
 
+import (
+	"strings"
+)
+
 var callbackEventMap = make(map[MessageCommandName]func(t *Twitch, m *Message, c interface{}))
 
 // OnChannelJoin tells the bot to call the given callback function when a user joins a channel that
@@ -24,9 +28,35 @@ func (t *Twitch) OnChannelMessage(callback ChannelMessageCallback) {
 	t.events[MsgCmdPrivmsg] = append(t.events[MsgCmdPrivmsg], &callback)
 }
 
+// OnChannelCommandMessage is similar to OnChannelMessage.
+//
+// OnChannelCommandMessage tells the bot to call the given callback function when someone sends a
+// command in a channel that you (the bot) already joined.
+// A command is defined by a prefix (usually "!"), e.g. the message "!foo bar" translates to the
+// command "foo" with the argument "bar".
+func (t *Twitch) OnChannelCommandMessage(cmd string, callback ChannelCommandMessageCallback) {
+	t.OnChannelMessage(func(t *Twitch, channel string, source *User, msg string) {
+		var ok bool
+		if msg, ok = strings.CutPrefix(msg, t.Prefix); !ok {
+			return
+		}
+		if msg, ok = strings.CutPrefix(msg, cmd); !ok {
+			return
+		}
+
+		msg = strings.Trim(msg, " ")
+		args := []string{}
+		if msg != "" {
+			args = strings.Split(msg, " ")
+		}
+		callback(t, channel, source, args)
+	})
+}
+
 type ChannelJoinCallback func(t *Twitch, channel string, source *User)
 type ChannelLeaveCallback func(t *Twitch, channel string, source *User)
 type ChannelMessageCallback func(t *Twitch, channel string, source *User, msg string)
+type ChannelCommandMessageCallback func(t *Twitch, channel string, source *User, args []string)
 
 func init() {
 	callbackEventMap[MsgCmdJoin] = func(t *Twitch, m *Message, c interface{}) {

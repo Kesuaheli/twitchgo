@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/kesuaheli/twitchgo"
@@ -24,7 +25,7 @@ func main() {
 	bot := twitchgo.New(username, token)
 
 	// Adding event listeners
-	bot.OnChannelMessage(ChannelMessage)
+	bot.OnChannelCommandMessage("hello", HandleCommandHello)
 
 	// starting the connection
 	err := bot.Connect()
@@ -40,9 +41,13 @@ func main() {
 	<-ctx.Done()
 }
 
-func ChannelMessage(t *twitchgo.Twitch, c string, u *twitchgo.User, m string) {
-	// Logging the message e.g. the user "username" writes the message "message" in the chat
-	// from user "channel":
-	// "[#channel] <username> message"
-	log.Printf("[%s] <%s> %s", c, u.Nickname, m)
+func HandleCommandHello(t *twitchgo.Twitch, channel string, u *twitchgo.User, args []string) {
+	// Logging the message
+	log.Printf("[%s] %s executed hello command with: \"%v\"", channel, u.Nickname, args)
+
+	if len(args) == 0 {
+		t.SendMessagef(channel, "Hello %s", u.Nickname)
+	} else {
+		t.SendMessagef(channel, "Hello %s", strings.Join(args, " "))
+	}
 }

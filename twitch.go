@@ -33,6 +33,7 @@ type Twitch struct {
 	conn     net.Conn
 	events   map[MessageCommandName][]interface{}
 	eventMu  sync.Mutex
+	Prefix   string
 }
 
 type Message struct {
@@ -120,6 +121,7 @@ func New(username, token string) (t *Twitch) {
 		token:    token,
 		username: username,
 		events:   make(map[MessageCommandName][]interface{}),
+		Prefix:   "!",
 	}
 	return t
 }
