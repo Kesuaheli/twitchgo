@@ -117,6 +117,9 @@ const (
 // event responses before connecting.
 // Start a connection with t.Connect()
 func New(username, token string) (t *Twitch) {
+	if username == "" {
+		username = "-"
+	}
 	t = &Twitch{
 		token:    token,
 		username: username,
@@ -200,7 +203,8 @@ func (t *Twitch) parseInitMessage(raw string) (byte, error) {
 		return 32, nil
 	case "372":
 		return 64, nil
-	case "376":
+	case MsgCmdGlobaluserstate:
+		m.handle(t)
 		return 128, nil
 	default:
 		if m.Command.Name == MsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
@@ -214,4 +218,14 @@ func (t *Twitch) parseInitMessage(raw string) (byte, error) {
 func (t *Twitch) Close() {
 	t.conn.Close()
 	log.Print("Twitch connection closed!")
+}
+
+func (u *User) String() string {
+	if u == nil {
+		return "<nil User>"
+	}
+	if u.Nickname == "" {
+		return u.Host
+	}
+	return u.Nickname
 }

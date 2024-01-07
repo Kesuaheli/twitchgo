@@ -28,6 +28,16 @@ func (t *Twitch) OnChannelMessage(callback ChannelMessageCallback) {
 	t.events[MsgCmdPrivmsg] = append(t.events[MsgCmdPrivmsg], &callback)
 }
 
+// OnGlobalUserState is called right after the bot has connected successfully. So this callback
+// function is only useful when adding Before calling Connect().
+//
+// The tags are all the tags the bot user has globally on twitch. Such as display name, global
+// badges, user ID,... See "https://dev.twitch.tv/docs/irc/tags/#globaluserstate-tags" for a list of
+// all possible tags.
+func (t *Twitch) OnGlobalUserState(callback GlobalUserStateCallback) {
+	t.events[MsgCmdGlobaluserstate] = append(t.events[MsgCmdGlobaluserstate], &callback)
+}
+
 // OnChannelCommandMessage is similar to OnChannelMessage.
 //
 // OnChannelCommandMessage tells the bot to call the given callback function when someone sends a
@@ -57,6 +67,7 @@ type ChannelJoinCallback func(t *Twitch, channel string, source *User)
 type ChannelLeaveCallback func(t *Twitch, channel string, source *User)
 type ChannelMessageCallback func(t *Twitch, channel string, source *User, msg string)
 type ChannelCommandMessageCallback func(t *Twitch, channel string, source *User, args []string)
+type GlobalUserStateCallback func(t *Twitch, userTags MessageTags)
 
 func init() {
 	callbackEventMap[MsgCmdJoin] = func(t *Twitch, m *Message, c interface{}) {
@@ -72,6 +83,11 @@ func init() {
 	callbackEventMap[MsgCmdPrivmsg] = func(t *Twitch, m *Message, c interface{}) {
 		if f, ok := c.(*ChannelMessageCallback); ok {
 			(*f)(t, m.Command.Arguments[0], m.Source, m.Command.Data)
+		}
+	}
+	callbackEventMap[MsgCmdGlobaluserstate] = func(t *Twitch, m *Message, c interface{}) {
+		if f, ok := c.(*GlobalUserStateCallback); ok {
+			(*f)(t, m.Tags)
 		}
 	}
 }
