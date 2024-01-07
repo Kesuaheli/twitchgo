@@ -96,4 +96,12 @@ func (m *Message) handle(t *Twitch) {
 	for _, c := range t.events[m.Command.Name] {
 		handleCallback(t, m, c)
 	}
+
+	handleCallback = callbackEventMap["*"]
+	if handleCallback == nil {
+		return
+	}
+	for _, c := range t.events["*"] {
+		handleCallback(t, m, c)
+	}
 }

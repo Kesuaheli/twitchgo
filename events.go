@@ -63,11 +63,17 @@ func (t *Twitch) OnChannelCommandMessage(cmd string, callback ChannelCommandMess
 	})
 }
 
+// OnAny is called on any event. This is usefull for debug purposes.
+func (t *Twitch) OnAny(callback AnyCallback) {
+	t.events["*"] = append(t.events["*"], &callback)
+}
+
 type ChannelJoinCallback func(t *Twitch, channel string, source *User)
 type ChannelLeaveCallback func(t *Twitch, channel string, source *User)
 type ChannelMessageCallback func(t *Twitch, channel string, source *User, msg string)
 type ChannelCommandMessageCallback func(t *Twitch, channel string, source *User, args []string)
 type GlobalUserStateCallback func(t *Twitch, userTags MessageTags)
+type AnyCallback func(t *Twitch, message Message)
 
 func init() {
 	callbackEventMap[MsgCmdJoin] = func(t *Twitch, m *Message, c interface{}) {
@@ -88,6 +94,13 @@ func init() {
 	callbackEventMap[MsgCmdGlobaluserstate] = func(t *Twitch, m *Message, c interface{}) {
 		if f, ok := c.(*GlobalUserStateCallback); ok {
 			(*f)(t, m.Tags)
+		}
+	}
+
+	// on any
+	callbackEventMap["*"] = func(t *Twitch, m *Message, c interface{}) {
+		if f, ok := c.(*AnyCallback); ok {
+			(*f)(t, *m)
 		}
 	}
 }
