@@ -46,3 +46,9 @@ func (t *Twitch) JoinChannel(channel string) {
 	channel, _ = strings.CutPrefix(channel, "#")
 	t.SendCommandf("%s #%s", MsgCmdJoin, channel)
 }
+
+// LeaveChannel leaves the given channel and nolonger receives messages from that channel afterwards
+func (t *Twitch) LeaveChannel(channel string) {
+	channel, _ = strings.CutPrefix(channel, "#")
+	t.SendCommandf("%s #%s", MsgCmdPart, channel)
+}
