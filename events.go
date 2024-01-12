@@ -38,6 +38,11 @@ func (t *Twitch) OnGlobalUserState(callback GlobalUserStateCallback) {
 	t.events[MsgCmdGlobaluserstate] = append(t.events[MsgCmdGlobaluserstate], &callback)
 }
 
+// OnRoomState is called right after the bot has connected successfully.
+func (t *Twitch) OnRoomState(callback RoomStateCallback) {
+	t.events[MsgCmdRoomstate] = append(t.events[MsgCmdRoomstate], &callback)
+}
+
 // OnChannelCommandMessage is similar to OnChannelMessage.
 //
 // OnChannelCommandMessage tells the bot to call the given callback function when someone sends a
@@ -73,6 +78,8 @@ type ChannelLeaveCallback func(t *Twitch, channel string, source *User)
 type ChannelMessageCallback func(t *Twitch, channel string, source *User, msg string)
 type ChannelCommandMessageCallback func(t *Twitch, channel string, source *User, args []string)
 type GlobalUserStateCallback func(t *Twitch, userTags MessageTags)
+type RoomStateCallback func(t *Twitch, roomTags MessageTags)
+
 type AnyCallback func(t *Twitch, message Message)
 
 func init() {
@@ -93,6 +100,11 @@ func init() {
 	}
 	callbackEventMap[MsgCmdGlobaluserstate] = func(t *Twitch, m *Message, c interface{}) {
 		if f, ok := c.(*GlobalUserStateCallback); ok {
+			(*f)(t, m.Tags)
+		}
+	}
+	callbackEventMap[MsgCmdRoomstate] = func(t *Twitch, m *Message, c interface{}) {
+		if f, ok := c.(*RoomStateCallback); ok {
 			(*f)(t, m.Tags)
 		}
 	}
