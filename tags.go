@@ -185,7 +185,7 @@ type MessageTags struct {
 	//	"bitsbadgetier"
 	MsgType string `json:"msg-id"`
 	// The message Twitch shows in the chat room for this notice.
-	SystemMsg string `json:"sytem-msg"`
+	SystemMsg string `json:"system-msg"`
 
 	// Included only with sub and resub notices.
 	//
@@ -285,6 +285,12 @@ type MessageTags struct {
 
 	// TODO documentation
 	CustomRewardID string `json:"custom-reward-id"`
+
+	// TODO documentation
+	MessageParamColor string `json:"msg-param-color"`
+
+	// TODO documentation
+	MessageParamGoalContribution string `json:"msg-param-goal-contribution-type"`
 }
 
 func ParseRawTags(raw string) MessageTags {
@@ -315,12 +321,14 @@ func formatRawTag(raw string) []byte {
 
 	var i MessageTags
 	t := reflect.TypeOf(i)
+	found := false
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
 		jsonTag := strings.Split(f.Tag.Get("json"), ",")[0]
 		if jsonTag != tagPair[0] {
 			continue
 		}
+		found = true
 
 		tagPair[1] = strings.ReplaceAll(tagPair[1], "\\s", " ")
 		tagPair[1] = strings.ReplaceAll(tagPair[1], "\\", "\\\\")
@@ -352,6 +360,11 @@ func formatRawTag(raw string) []byte {
 			tagPair[1] = fmt.Sprintf("\"%s\"", tagPair[1])
 			log.Printf("formated %+v '%d' (json:'%s') as string", f.Type, f.Type.Kind(), jsonTag)
 		}
+		break
+	}
+	if !found {
+		tagPair[1] = fmt.Sprintf("\"%s\"", tagPair[1])
+		log.Printf("WARN: unknown key '%s', formatted '%s' as string", tagPair[0], tagPair[1])
 	}
 
 	formated := fmt.Sprintf("\"%s\":%s", tagPair[0], tagPair[1])
