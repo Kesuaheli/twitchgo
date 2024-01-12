@@ -49,22 +49,27 @@ func (t *Twitch) OnRoomState(callback RoomStateCallback) {
 // command in a channel that you (the bot) already joined.
 // A command is defined by a prefix (usually "!"), e.g. the message "!foo bar" translates to the
 // command "foo" with the argument "bar".
-func (t *Twitch) OnChannelCommandMessage(cmd string, callback ChannelCommandMessageCallback) {
+func (t *Twitch) OnChannelCommandMessage(cmd string, ignoreCase bool, callback ChannelCommandMessageCallback) {
+	if ignoreCase {
+		cmd = strings.ToLower(cmd)
+	}
 	t.OnChannelMessage(func(t *Twitch, channel string, source *User, msg string) {
-		var ok bool
-		if msg, ok = strings.CutPrefix(msg, t.Prefix); !ok {
-			return
-		}
-		if msg, ok = strings.CutPrefix(msg, cmd); !ok {
+		args := strings.Split(msg, " ")
+		msgCommand := args[0]
+
+		msgCommand, hasPrefix := strings.CutPrefix(msgCommand, t.Prefix)
+		if !hasPrefix {
 			return
 		}
 
-		msg = strings.Trim(msg, " ")
-		args := []string{}
-		if msg != "" {
-			args = strings.Split(msg, " ")
+		if ignoreCase {
+			msgCommand = strings.ToLower(msgCommand)
 		}
-		callback(t, channel, source, args)
+		if msgCommand != cmd {
+			return
+		}
+
+		callback(t, channel, source, args[1:])
 	})
 }
 

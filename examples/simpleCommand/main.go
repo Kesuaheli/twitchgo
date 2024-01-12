@@ -25,7 +25,7 @@ func main() {
 	bot := twitchgo.New(username, token)
 
 	// Adding event listeners
-	bot.OnChannelCommandMessage("hello", HandleCommandHello)
+	bot.OnChannelCommandMessage("hello", true, HandleCommandHello)
 
 	// starting the connection
 	err := bot.Connect()
