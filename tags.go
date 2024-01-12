@@ -283,6 +283,8 @@ type MessageTags struct {
 	// Undocumented
 	Flags string `json:"flags"`
 
+	// This are some tags that are undocumented by twitch, but sent when receiving messages
+
 	// TODO documentation
 	CustomRewardID string `json:"custom-reward-id"`
 
@@ -291,6 +293,13 @@ type MessageTags struct {
 
 	// TODO documentation
 	MessageParamGoalContribution string `json:"msg-param-goal-contribution-type"`
+
+	// Whether this is the first message by a user in this channel
+	FirstMessage bool `json:"first-msg"`
+
+	// Whether this is a message by a returning chatter (more information needed, probably a user
+	// who came back to this channel after a long time)
+	ReturningChatter bool `json:"returning-chatter"`
 }
 
 func ParseRawTags(raw string) MessageTags {
