@@ -99,7 +99,7 @@ type MessageTags struct {
 	// an emote. For example, \001ACTION barfs on the floor.\001.
 	Emotes []string `json:"emotes"`
 	// An ID that uniquely identifies the message.
-	//	ID string `json:"id"`
+	//
 	// If a privmsg was sent, an ID that uniquely identifies the message.
 	ID string `json:"id"`
 
