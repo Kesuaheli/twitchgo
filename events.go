@@ -4,28 +4,28 @@ import (
 	"strings"
 )
 
-var callbackEventMap = make(map[MessageCommandName]func(t *Twitch, m *Message, c interface{}))
+var ircCallbackEventMap = make(map[IRCMessageCommandName]func(t *IRCSession, m *IRCMessage, c interface{}))
 
 // OnChannelJoin tells the bot to call the given callback function when a user joins a channel that
 // you (the bot) already joined.
-func (t *Twitch) OnChannelJoin(callback ChannelJoinCallback) {
-	t.events[MsgCmdJoin] = append(t.events[MsgCmdJoin], &callback)
+func (t *IRCSession) OnChannelJoin(callback IRCChannelJoinCallback) {
+	t.events[IRCMsgCmdJoin] = append(t.events[IRCMsgCmdJoin], &callback)
 }
 
-func (t *Twitch) OnChannelNotice(callback func(t *Twitch)) {
-	t.events[MsgCmdNotice] = append(t.events[MsgCmdNotice], &callback)
+func (t *IRCSession) OnChannelNotice(callback func(t *IRCSession)) {
+	t.events[IRCMsgCmdNotice] = append(t.events[IRCMsgCmdNotice], &callback)
 }
 
 // OnChannelLeave tells the bot to call the given callback function when a user diconnects from a
 // channel that you (the bot) already joined.
-func (t *Twitch) OnChannelLeave(callback ChannelLeaveCallback) {
-	t.events[MsgCmdPart] = append(t.events[MsgCmdPart], &callback)
+func (t *IRCSession) OnChannelLeave(callback IRCChannelLeaveCallback) {
+	t.events[IRCMsgCmdPart] = append(t.events[IRCMsgCmdPart], &callback)
 }
 
 // OnChannelMessage tells the bot to call the given callback function when someone sends a message
 // in a channel that you (the bot) already joined.
-func (t *Twitch) OnChannelMessage(callback ChannelMessageCallback) {
-	t.events[MsgCmdPrivmsg] = append(t.events[MsgCmdPrivmsg], &callback)
+func (t *IRCSession) OnChannelMessage(callback IRCChannelMessageCallback) {
+	t.events[IRCMsgCmdPrivmsg] = append(t.events[IRCMsgCmdPrivmsg], &callback)
 }
 
 // OnGlobalUserState is called right after the bot has connected successfully. So this callback
@@ -34,13 +34,13 @@ func (t *Twitch) OnChannelMessage(callback ChannelMessageCallback) {
 // The tags are all the tags the bot user has globally on twitch. Such as display name, global
 // badges, user ID,... See "https://dev.twitch.tv/docs/irc/tags/#globaluserstate-tags" for a list of
 // all possible tags.
-func (t *Twitch) OnGlobalUserState(callback GlobalUserStateCallback) {
-	t.events[MsgCmdGlobaluserstate] = append(t.events[MsgCmdGlobaluserstate], &callback)
+func (t *IRCSession) OnGlobalUserState(callback IRCGlobalUserStateCallback) {
+	t.events[IRCMsgCmdGlobaluserstate] = append(t.events[IRCMsgCmdGlobaluserstate], &callback)
 }
 
 // OnRoomState is called right after the bot has connected successfully.
-func (t *Twitch) OnRoomState(callback RoomStateCallback) {
-	t.events[MsgCmdRoomstate] = append(t.events[MsgCmdRoomstate], &callback)
+func (t *IRCSession) OnRoomState(callback IRCRoomStateCallback) {
+	t.events[IRCMsgCmdRoomstate] = append(t.events[IRCMsgCmdRoomstate], &callback)
 }
 
 // OnChannelCommandMessage is similar to OnChannelMessage.
@@ -49,11 +49,11 @@ func (t *Twitch) OnRoomState(callback RoomStateCallback) {
 // command in a channel that you (the bot) already joined.
 // A command is defined by a prefix (usually "!"), e.g. the message "!foo bar" translates to the
 // command "foo" with the argument "bar".
-func (t *Twitch) OnChannelCommandMessage(cmd string, ignoreCase bool, callback ChannelCommandMessageCallback) {
+func (t *IRCSession) OnChannelCommandMessage(cmd string, ignoreCase bool, callback IRCChannelCommandMessageCallback) {
 	if ignoreCase {
 		cmd = strings.ToLower(cmd)
 	}
-	t.OnChannelMessage(func(t *Twitch, channel string, source *User, msg string) {
+	t.OnChannelMessage(func(t *IRCSession, channel string, source *IRCUser, msg string) {
 		args := strings.Split(msg, " ")
 		msgCommand := args[0]
 
@@ -74,49 +74,49 @@ func (t *Twitch) OnChannelCommandMessage(cmd string, ignoreCase bool, callback C
 }
 
 // OnAny is called on any event. This is usefull for debug purposes.
-func (t *Twitch) OnAny(callback AnyCallback) {
+func (t *IRCSession) OnAny(callback IRCAnyCallback) {
 	t.events["*"] = append(t.events["*"], &callback)
 }
 
-type ChannelJoinCallback func(t *Twitch, channel string, source *User)
-type ChannelLeaveCallback func(t *Twitch, channel string, source *User)
-type ChannelMessageCallback func(t *Twitch, channel string, source *User, msg string)
-type ChannelCommandMessageCallback func(t *Twitch, channel string, source *User, args []string)
-type GlobalUserStateCallback func(t *Twitch, userTags MessageTags)
-type RoomStateCallback func(t *Twitch, roomTags MessageTags)
+type IRCChannelJoinCallback func(t *IRCSession, channel string, source *IRCUser)
+type IRCChannelLeaveCallback func(t *IRCSession, channel string, source *IRCUser)
+type IRCChannelMessageCallback func(t *IRCSession, channel string, source *IRCUser, msg string)
+type IRCChannelCommandMessageCallback func(t *IRCSession, channel string, source *IRCUser, args []string)
+type IRCGlobalUserStateCallback func(t *IRCSession, userTags IRCMessageTags)
+type IRCRoomStateCallback func(t *IRCSession, roomTags IRCMessageTags)
 
-type AnyCallback func(t *Twitch, message Message)
+type IRCAnyCallback func(t *IRCSession, message IRCMessage)
 
 func init() {
-	callbackEventMap[MsgCmdJoin] = func(t *Twitch, m *Message, c interface{}) {
-		if f, ok := c.(*ChannelJoinCallback); ok {
+	ircCallbackEventMap[IRCMsgCmdJoin] = func(t *IRCSession, m *IRCMessage, c interface{}) {
+		if f, ok := c.(*IRCChannelJoinCallback); ok {
 			(*f)(t, m.Command.Arguments[0], m.Source)
 		}
 	}
-	callbackEventMap[MsgCmdPart] = func(t *Twitch, m *Message, c interface{}) {
-		if f, ok := c.(*ChannelLeaveCallback); ok {
+	ircCallbackEventMap[IRCMsgCmdPart] = func(t *IRCSession, m *IRCMessage, c interface{}) {
+		if f, ok := c.(*IRCChannelLeaveCallback); ok {
 			(*f)(t, m.Command.Arguments[0], m.Source)
 		}
 	}
-	callbackEventMap[MsgCmdPrivmsg] = func(t *Twitch, m *Message, c interface{}) {
-		if f, ok := c.(*ChannelMessageCallback); ok {
+	ircCallbackEventMap[IRCMsgCmdPrivmsg] = func(t *IRCSession, m *IRCMessage, c interface{}) {
+		if f, ok := c.(*IRCChannelMessageCallback); ok {
 			(*f)(t, m.Command.Arguments[0], m.Source, m.Command.Data)
 		}
 	}
-	callbackEventMap[MsgCmdGlobaluserstate] = func(t *Twitch, m *Message, c interface{}) {
-		if f, ok := c.(*GlobalUserStateCallback); ok {
+	ircCallbackEventMap[IRCMsgCmdGlobaluserstate] = func(t *IRCSession, m *IRCMessage, c interface{}) {
+		if f, ok := c.(*IRCGlobalUserStateCallback); ok {
 			(*f)(t, m.Tags)
 		}
 	}
-	callbackEventMap[MsgCmdRoomstate] = func(t *Twitch, m *Message, c interface{}) {
-		if f, ok := c.(*RoomStateCallback); ok {
+	ircCallbackEventMap[IRCMsgCmdRoomstate] = func(t *IRCSession, m *IRCMessage, c interface{}) {
+		if f, ok := c.(*IRCRoomStateCallback); ok {
 			(*f)(t, m.Tags)
 		}
 	}
 
 	// on any
-	callbackEventMap["*"] = func(t *Twitch, m *Message, c interface{}) {
-		if f, ok := c.(*AnyCallback); ok {
+	ircCallbackEventMap["*"] = func(t *IRCSession, m *IRCMessage, c interface{}) {
+		if f, ok := c.(*IRCAnyCallback); ok {
 			(*f)(t, *m)
 		}
 	}

@@ -25,112 +25,112 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 )
 
-type Twitch struct {
+type IRCSession struct {
 	sync.Mutex
 
 	token    string
 	username string
 	conn     net.Conn
-	events   map[MessageCommandName][]interface{}
+	events   map[IRCMessageCommandName][]interface{}
 	eventMu  sync.Mutex
 	Prefix   string
 }
 
-type Message struct {
+type IRCMessage struct {
 	Raw     string
-	Tags    MessageTags
-	Source  *User
-	Command MessageCommand
+	Tags    IRCMessageTags
+	Source  *IRCUser
+	Command IRCMessageCommand
 }
-type User struct {
+type IRCUser struct {
 	Nickname string
 	Host     string
 }
 
-type MessageCommand struct {
-	Name      MessageCommandName
+type IRCMessageCommand struct {
+	Name      IRCMessageCommandName
 	Arguments []string
 	Data      string
 }
-type MessageCommandName string
+type IRCMessageCommandName string
 
 const (
 	// Your bot sends this message to join a channel.
-	MsgCmdJoin MessageCommandName = "JOIN"
+	IRCMsgCmdJoin IRCMessageCommandName = "JOIN"
 	// Your bot sends this message to specify the bot’s nickname when authenticating with the Twitch
 	// IRC server.
-	MsgCmdNick MessageCommandName = "NICK"
+	IRCMsgCmdNick IRCMessageCommandName = "NICK"
 	// Your bot receives this message from the Twitch IRC server to indicate whether a command
 	// succeeded or failed. For example, a moderator tried to ban a user that was already banned.
-	MsgCmdNotice MessageCommandName = "NOTICE"
+	IRCMsgCmdNotice IRCMessageCommandName = "NOTICE"
 	// Your bot sends this message to leave a channel.
 	//
 	// Your bot receives this message from the Twitch IRC server when a channel bans it.
-	MsgCmdPart MessageCommandName = "PART"
+	IRCMsgCmdPart IRCMessageCommandName = "PART"
 	// Your bot sends this message to specify the bot’s password when authenticating with the Twitch
 	// IRC server.
-	MsgCmdPass MessageCommandName = "PASS"
+	IRCMsgCmdPass IRCMessageCommandName = "PASS"
 	// Your bot receives this message from the Twitch IRC server when the server wants to ensure
 	// that your bot is still alive and able to respond to the server’s messages.
-	MsgCmdPing MessageCommandName = "PING"
+	IRCMsgCmdPing IRCMessageCommandName = "PING"
 	// Your bot sends this message in reply to the Twitch IRC server’s PING message.
-	MsgCmdPong MessageCommandName = "PONG"
+	IRCMsgCmdPong IRCMessageCommandName = "PONG"
 	// Your bot sends this message to post a chat message in the channel’s chat room.
 	//
 	// Your bot receives this message from the Twitch IRC server when a user posts a chat message in
 	// the chat room.
-	MsgCmdPrivmsg MessageCommandName = "PRIVMSG"
+	IRCMsgCmdPrivmsg IRCMessageCommandName = "PRIVMSG"
 
 	// Your bot receives this message from the Twitch IRC server when all messages are removed from
 	// the chat room, or all messages for a specific user are removed from the chat room.
-	MsgCmdClearchat MessageCommandName = "CLEARCHAT"
+	IRCMsgCmdClearchat IRCMessageCommandName = "CLEARCHAT"
 	// Your bot receives this message from the Twitch IRC server when a specific message is removed
 	// from the chat room.
-	MsgCmdClearmsg MessageCommandName = "CLEARMSG"
+	IRCMsgCmdClearmsg IRCMessageCommandName = "CLEARMSG"
 	// Your bot receives this message from the Twitch IRC server when a bot connects to the server.
-	MsgCmdGlobaluserstate MessageCommandName = "GLOBALUSERSTATE"
+	IRCMsgCmdGlobaluserstate IRCMessageCommandName = "GLOBALUSERSTATE"
 	// Your bot receives this message from the Twitch IRC server when a channel starts or stops host
 	// mode.
-	MsgCmdHosttarget MessageCommandName = "HOSTTARGET"
+	IRCMsgCmdHosttarget IRCMessageCommandName = "HOSTTARGET"
 	// Your bot receives this message from the Twitch IRC server when the server needs to perform
 	// maintenance and is about to disconnect your bot.
-	MsgCmdReconnect MessageCommandName = "RECONNECT"
+	IRCMsgCmdReconnect IRCMessageCommandName = "RECONNECT"
 	// Your bot receives this message from the Twitch IRC server when a bot joins a channel or a
 	// moderator changes the chat room’s chat settings.
-	MsgCmdRoomstate MessageCommandName = "ROOMSTATE"
+	IRCMsgCmdRoomstate IRCMessageCommandName = "ROOMSTATE"
 	// Your bot receives this message from the Twitch IRC server when events like user subscriptions
 	// occur.
-	MsgCmdUsernotice MessageCommandName = "USERNOTICE"
+	IRCMsgCmdUsernotice IRCMessageCommandName = "USERNOTICE"
 	// Your bot receives this message from the Twitch IRC server when a user joins a channel or the
 	// bot sends a PRIVMSG message.
-	MsgCmdUserstate MessageCommandName = "USERSTATE"
+	IRCMsgCmdUserstate IRCMessageCommandName = "USERSTATE"
 	// Your bot receives this message from the Twitch IRC server when a user sends a WHISPER
 	// message.
-	MsgCmdWhisper MessageCommandName = "WHISPER"
+	IRCMsgCmdWhisper IRCMessageCommandName = "WHISPER"
 	//
-	MsgCmdCap MessageCommandName = "CAP"
+	IRCMsgCmdCap IRCMessageCommandName = "CAP"
 	//
-	MsgCmdUserList MessageCommandName = "353"
+	IRCMsgCmdUserList IRCMessageCommandName = "353"
 )
 
-// New creates a new Twitch instance but doesn't actuallay do anything. Can be used to register
+// NewIRC creates a new Twitch instance but doesn't actuallay do anything. Can be used to register
 // event responses before connecting.
 // Start a connection with t.Connect()
-func New(username, token string) (t *Twitch) {
+func NewIRC(username, token string) (t *IRCSession) {
 	if username == "" {
 		username = "-"
 	}
-	t = &Twitch{
+	t = &IRCSession{
 		token:    token,
 		username: username,
-		events:   make(map[MessageCommandName][]interface{}),
+		events:   make(map[IRCMessageCommandName][]interface{}),
 		Prefix:   "!",
 	}
 	return t
 }
 
 // Connect actually starts the connection to twitch.
-func (t *Twitch) Connect() error {
+func (t *IRCSession) Connect() error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -159,7 +159,7 @@ func (t *Twitch) Connect() error {
 	return nil
 }
 
-func (t *Twitch) waitForInit() (err error) {
+func (t *IRCSession) waitForInit() (err error) {
 	t.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var checklist byte
 done:
@@ -183,13 +183,13 @@ done:
 	return err
 }
 
-func (t *Twitch) parseInitMessage(raw string) (byte, error) {
+func (t *IRCSession) parseInitMessage(raw string) (byte, error) {
 	m := t.parseMessage(raw)
 	if m == nil {
 		return 0, nil
 	}
 	switch m.Command.Name {
-	case MsgCmdCap:
+	case IRCMsgCmdCap:
 		return 1, nil
 	case "001":
 		return 2, nil
@@ -203,11 +203,11 @@ func (t *Twitch) parseInitMessage(raw string) (byte, error) {
 		return 32, nil
 	case "372":
 		return 64, nil
-	case MsgCmdGlobaluserstate:
+	case IRCMsgCmdGlobaluserstate:
 		m.handle(t)
 		return 128, nil
 	default:
-		if m.Command.Name == MsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
+		if m.Command.Name == IRCMsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
 			return 0, ErrInvalidToken
 		}
 		m.handle(t)
@@ -215,12 +215,12 @@ func (t *Twitch) parseInitMessage(raw string) (byte, error) {
 	}
 }
 
-func (t *Twitch) Close() {
+func (t *IRCSession) Close() {
 	t.conn.Close()
 	log.Print("Twitch connection closed!")
 }
 
-func (u *User) String() string {
+func (u *IRCUser) String() string {
 	if u == nil {
 		return "<nil User>"
 	}

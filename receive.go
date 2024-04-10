@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (t *Twitch) listen() {
+func (t *IRCSession) listen() {
 	for {
 		buf, err := t.readAll()
 		if errors.Is(err, net.ErrClosed) {
@@ -22,7 +22,7 @@ func (t *Twitch) listen() {
 	}
 }
 
-func (t *Twitch) readAll() ([]byte, error) {
+func (t *IRCSession) readAll() ([]byte, error) {
 	buf := make([]byte, 0)
 	b := make([]byte, 1024)
 	for {
@@ -40,16 +40,16 @@ func (t *Twitch) readAll() ([]byte, error) {
 	return buf, nil
 }
 
-func (t *Twitch) parseMessage(raw string) *Message {
+func (t *IRCSession) parseMessage(raw string) *IRCMessage {
 	if len(raw) == 0 {
 		return nil
 	}
 
-	m := &Message{Raw: raw}
+	m := &IRCMessage{Raw: raw}
 
 	if raw[0] == '@' {
 		i := strings.Index(raw, " ")
-		m.Tags = ParseRawTags(raw[1:i])
+		m.Tags = ParseRawIRCTags(raw[1:i])
 		raw = raw[i+1:]
 	}
 
@@ -57,9 +57,9 @@ func (t *Twitch) parseMessage(raw string) *Message {
 		i := strings.Index(raw, " ")
 		source := strings.Split(raw[1:i], "!")
 		if len(source) == 2 {
-			m.Source = &User{Nickname: source[0], Host: source[0]}
+			m.Source = &IRCUser{Nickname: source[0], Host: source[0]}
 		} else {
-			m.Source = &User{Host: source[0]}
+			m.Source = &IRCUser{Host: source[0]}
 		}
 		raw = raw[i+1:]
 	}
@@ -67,7 +67,7 @@ func (t *Twitch) parseMessage(raw string) *Message {
 	data := strings.Split(raw, " :")
 	args := strings.Split(data[0], " ")
 
-	m.Command.Name = MessageCommandName(args[0])
+	m.Command.Name = IRCMessageCommandName(args[0])
 	if len(args) > 1 {
 		m.Command.Arguments = args[1:]
 	}
@@ -78,18 +78,18 @@ func (t *Twitch) parseMessage(raw string) *Message {
 	return m
 }
 
-func (m *Message) handle(t *Twitch) {
+func (m *IRCMessage) handle(t *IRCSession) {
 	if m == nil || t == nil {
 		return
 	}
 
 	// on ping commands only reply with a pong and exit the handler
-	if m.Command.Name == MsgCmdPing {
-		t.SendCommand(string(MsgCmdPong))
+	if m.Command.Name == IRCMsgCmdPing {
+		t.SendCommand(string(IRCMsgCmdPong))
 		return
 	}
 
-	handleCallback := callbackEventMap[m.Command.Name]
+	handleCallback := ircCallbackEventMap[m.Command.Name]
 	if handleCallback == nil {
 		return
 	}
@@ -97,7 +97,7 @@ func (m *Message) handle(t *Twitch) {
 		handleCallback(t, m, c)
 	}
 
-	handleCallback = callbackEventMap["*"]
+	handleCallback = ircCallbackEventMap["*"]
 	if handleCallback == nil {
 		return
 	}
