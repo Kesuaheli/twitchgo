@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kesuaheli/twitchgo/oauth"
 )
 
 const (
@@ -24,6 +26,12 @@ var (
 	// formatted and a connection could not be established.
 	ErrInvalidToken = errors.New("invalid token")
 )
+
+type Session struct {
+	clientID     string
+	clientSecret string
+	oauth        *oauth.Client
+}
 
 type IRCSession struct {
 	sync.Mutex
