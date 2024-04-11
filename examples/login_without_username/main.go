@@ -19,7 +19,7 @@ func main() {
 	defer cancel()
 
 	// creating a new bot with credentials
-	bot := twitchgo.New("", token)
+	bot := twitchgo.NewIRC("", token)
 
 	// You can add a listener to the globaluserstate event, which is called right after a succesfull
 	// connection. In this event you can read the display name of the bot (and more, of course).
@@ -36,6 +36,6 @@ func main() {
 	<-ctx.Done()
 }
 
-func GotGlobalUser(t *twitchgo.Twitch, tags twitchgo.MessageTags) {
+func GotGlobalUser(t *twitchgo.IRCSession, tags twitchgo.IRCMessageTags) {
 	fmt.Printf("User: %s\n", tags.DisplayName)
 }

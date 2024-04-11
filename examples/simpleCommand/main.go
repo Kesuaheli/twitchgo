@@ -22,7 +22,7 @@ func main() {
 	defer cancel()
 
 	// creating a new bot with credentials
-	bot := twitchgo.New(username, token)
+	bot := twitchgo.NewIRC(username, token)
 
 	// Adding event listeners
 	bot.OnChannelCommandMessage("hello", true, HandleCommandHello)
@@ -41,7 +41,7 @@ func main() {
 	<-ctx.Done()
 }
 
-func HandleCommandHello(t *twitchgo.Twitch, channel string, u *twitchgo.User, args []string) {
+func HandleCommandHello(t *twitchgo.IRCSession, channel string, u *twitchgo.IRCUser, args []string) {
 	// Logging the message
 	log.Printf("[%s] %s executed hello command with: \"%v\"", channel, u.Nickname, args)
 

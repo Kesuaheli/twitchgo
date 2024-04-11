@@ -21,7 +21,7 @@ func main() {
 	defer cancel()
 
 	// creating a new bot with credentials
-	bot := twitchgo.New(username, token)
+	bot := twitchgo.NewIRC(username, token)
 
 	// Adding event listeners
 	bot.OnChannelMessage(ChannelMessage)
@@ -40,7 +40,7 @@ func main() {
 	<-ctx.Done()
 }
 
-func ChannelMessage(t *twitchgo.Twitch, c string, u *twitchgo.User, m string) {
+func ChannelMessage(t *twitchgo.IRCSession, c string, u *twitchgo.IRCUser, m string) {
 	// Logging the message e.g. the user "username" writes the message "message" in the chat
 	// from user "channel":
 	// "[#channel] <username> message"
