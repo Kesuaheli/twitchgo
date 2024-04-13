@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	baseURL = "https://api.twitch.tv/helix"
 	IRCHost = "irc.chat.twitch.tv"
 	IRCPort = 6667
 )
@@ -27,21 +28,93 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 )
 
+// Session is the instance for all Twitch events.
 type Session struct {
+	mu sync.Mutex
+
 	clientID     string
 	clientSecret string
 	oauth        *oauth.Client
-}
 
-type IRCSession struct {
-	sync.Mutex
-
-	token    string
+	ircToken string
 	username string
-	conn     net.Conn
+	ircConn  net.Conn
 	events   map[IRCMessageCommandName][]interface{}
 	eventMu  sync.Mutex
 	Prefix   string
+}
+
+// New creates a new Twitch instance for API and IRC connections. Can be used to register event
+// responses before connecting.
+//
+// Setting clientID or clientSecret to an empty string will result in not connecting to the Twitch
+// API on the call to s.Connect. Setting ircToken to an empty string will result in not connecting
+// to the IRC server on the call to s.Connect.
+//
+// See also [NewAPIOnly], [NewIRCOnly] to create sessions for only one connection type and
+// [Session.SetAPI], [Session.SetIRC] to update an existing Twitch session.
+func New(clientID, clientSecret, ircToken string) *Session {
+	return NewAPIOnly(clientID, clientSecret).SetIRC(ircToken)
+}
+
+// NewAPIOnly creates a new Twitch instance only for API connection. Can be used to register event
+// responses before connecting. Setting clientID or clientSecret to an empty string will result in
+// not connecting to the Twitch API on the call to s.Connect.
+//
+// See also [New], [NewIRCOnly] to create other session types and [Session.SetAPI],
+// [Session.SetIRC] to update an existing Twitch session.
+func NewAPIOnly(clientID, clientSecret string) *Session {
+	return (&Session{}).SetAPI(clientID, clientSecret)
+}
+
+// NewIRCOnly creates a new Twitch instance only for IRC connection. Can be used to register event
+// responses before connecting. Setting ircToken to an empty string will result in not connecting to
+// the IRC server on the call to s.Connect.
+//
+// See also [New], [NewAPIOnly] to create other session types and [Session.SetAPI],
+// [Session.SetIRC] to update an existing Twitch session.
+func NewIRCOnly(ircToken string) *Session {
+	return (&Session{}).SetIRC(ircToken)
+}
+
+// SetAPI sets the credentials used for a connection to the Twitch API. It will override the
+// existing credentials, if previously set. Setting clientID or clientSecret to an empty string will
+// result in not connecting to the Twitch API on the call to s.Connect. SetAPI will panic when
+// s.Connect was already successfull.
+//
+// See also [Session.SetIRC] to update IRC credentials.
+func (s *Session) SetAPI(clientID, clientSecret string) *Session {
+	if s.oauth != nil || s.ircConn != nil {
+		panic("Session already connected")
+	}
+
+	s.clientID = clientID
+	s.clientSecret = clientSecret
+
+	s.oauth = oauth.New(
+		"https://id.twitch.tv/oauth2/token",
+		clientID,
+		clientSecret,
+		"",
+	)
+
+	return s
+}
+
+// SetIRC sets the token used for a connection to the Twitch IRC server. It will override the
+// existing token, if previously set. Setting ircToken to an empty string will result in not
+// connecting to the IRC server on the call to s.Connect. SetIRC will panic when s.Connect was
+// already successfull.
+//
+// See also [Session.SetAPI] to update API credentials.
+func (s *Session) SetIRC(ircToken string) *Session {
+	if s.oauth != nil || s.ircConn != nil {
+		panic("Session already connected")
+	}
+
+	s.ircToken = ircToken
+	s.username = ""
+	return s
 }
 
 type IRCMessage struct {
@@ -121,78 +194,62 @@ const (
 	IRCMsgCmdUserList IRCMessageCommandName = "353"
 )
 
-// NewIRC creates a new Twitch instance but doesn't actuallay do anything. Can be used to register
-// event responses before connecting.
-// Start a connection with t.Connect()
-func NewIRC(username, token string) (t *IRCSession) {
-	if username == "" {
-		username = "-"
-	}
-	t = &IRCSession{
-		token:    token,
-		username: username,
-		events:   make(map[IRCMessageCommandName][]interface{}),
-		Prefix:   "!",
-	}
-	return t
-}
-
 // Connect actually starts the connection to twitch.
-func (t *IRCSession) Connect() error {
-	t.Lock()
-	defer t.Unlock()
+func (s *Session) Connect() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if t.conn != nil {
+	if s.ircConn != nil {
 		return ErrAlreadyConnected
 	}
 
 	var err error
 	adress := fmt.Sprintf("%s:%d", IRCHost, IRCPort)
-	t.conn, err = net.Dial("tcp", adress)
+	s.ircConn, err = net.Dial("tcp", adress)
 	if err != nil {
 		log.Printf("Dial failed: %+v", err)
 		return err
 	}
 
-	t.SendCommand("CAP REQ :twitch.tv/commands twitch.tv/membership twitch.tv/tags")
-	t.SendCommandf("PASS %s", t.token)
-	t.SendCommandf("NICK %s", t.username)
+	s.SendCommand("CAP REQ :twitch.tv/commands twitch.tv/membership twitch.tv/tags")
+	s.SendCommandf("PASS %s", s.ircToken)
+	s.SendCommandf("NICK %s", s.username)
 
-	if err = t.waitForInit(); err != nil {
-		t.conn.Close()
+	if err = s.waitForInit(); err != nil {
+		s.ircConn.Close()
 		return err
 	}
 
-	go t.listen()
+	go s.listen()
 	return nil
 }
 
-func (t *IRCSession) waitForInit() (err error) {
-	t.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+func (s *Session) waitForInit() (err error) {
+	s.ircConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var checklist byte
 done:
 	for {
 		var buf []byte
-		buf, err = t.readAll()
+		buf, err = s.readAll()
 		if err != nil {
 			break
 		}
 		msgs := strings.Split(string(buf), "\r\n")
 		for _, raw := range msgs {
 			var check byte
-			check, err = t.parseInitMessage(raw)
+			check, err = s.parseInitMessage(raw)
 			checklist |= check
 			if err != nil || checklist == 255 {
 				break done
 			}
 		}
 	}
-	t.conn.SetReadDeadline(time.Time{})
+	s.ircConn.SetReadDeadline(time.Time{})
 	return err
 }
 
-func (t *IRCSession) parseInitMessage(raw string) (byte, error) {
-	m := t.parseMessage(raw)
+func (s *Session) parseInitMessage(raw string) (byte, error) {
+	m := s.parseMessage(raw)
 	if m == nil {
 		return 0, nil
 	}
@@ -212,19 +269,19 @@ func (t *IRCSession) parseInitMessage(raw string) (byte, error) {
 	case "372":
 		return 64, nil
 	case IRCMsgCmdGlobaluserstate:
-		m.handle(t)
+		m.handle(s)
 		return 128, nil
 	default:
 		if m.Command.Name == IRCMsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
 			return 0, ErrInvalidToken
 		}
-		m.handle(t)
+		m.handle(s)
 		return 0, nil
 	}
 }
 
-func (t *IRCSession) Close() {
-	t.conn.Close()
+func (s *Session) Close() {
+	s.ircConn.Close()
 	log.Print("Twitch connection closed!")
 }
 

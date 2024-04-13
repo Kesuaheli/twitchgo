@@ -6,30 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	"github.com/kesuaheli/twitchgo/oauth"
 )
-
-const (
-	baseURL = "https://api.twitch.tv/helix"
-)
-
-// New initializes the variables
-func New(clientID, clientSecret string) *Session {
-	s := &Session{
-		clientID:     clientID,
-		clientSecret: clientSecret,
-	}
-
-	s.oauth = oauth.New(
-		"https://id.twitch.tv/oauth2/token",
-		clientID,
-		clientSecret,
-		"",
-	)
-
-	return s
-}
 
 // GetStreamsByID gets all the streams matching the given user IDs of the streamers.
 // Returns only the streams of those users that are broadcasting.

@@ -14,7 +14,7 @@ import (
 
 const (
 	username = ""
-	token    = "" // Remember to never use your store your token in production code!
+	ircToken = "" // Remember to never use your store your token in production code!
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	defer cancel()
 
 	// creating a new bot with credentials
-	bot := twitchgo.NewIRC(username, token)
+	bot := twitchgo.NewIRCOnly(ircToken)
 
 	// Adding event listeners
 	bot.OnChannelCommandMessage("hello", true, HandleCommandHello)
@@ -41,7 +41,7 @@ func main() {
 	<-ctx.Done()
 }
 
-func HandleCommandHello(t *twitchgo.IRCSession, channel string, u *twitchgo.IRCUser, args []string) {
+func HandleCommandHello(t *twitchgo.Session, channel string, u *twitchgo.IRCUser, args []string) {
 	// Logging the message
 	log.Printf("[%s] %s executed hello command with: \"%v\"", channel, u.Nickname, args)
 

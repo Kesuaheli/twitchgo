@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-func (t *IRCSession) listen() {
+func (s *Session) listen() {
 	for {
-		buf, err := t.readAll()
+		buf, err := s.readAll()
 		if errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
@@ -17,16 +17,16 @@ func (t *IRCSession) listen() {
 		}
 		msgs := strings.Split(string(buf), "\r\n")
 		for _, m := range msgs {
-			t.parseMessage(m).handle(t)
+			s.parseMessage(m).handle(s)
 		}
 	}
 }
 
-func (t *IRCSession) readAll() ([]byte, error) {
+func (s *Session) readAll() ([]byte, error) {
 	buf := make([]byte, 0)
 	b := make([]byte, 1024)
 	for {
-		n, err := t.conn.Read(b)
+		n, err := s.ircConn.Read(b)
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -40,7 +40,7 @@ func (t *IRCSession) readAll() ([]byte, error) {
 	return buf, nil
 }
 
-func (t *IRCSession) parseMessage(raw string) *IRCMessage {
+func (s *Session) parseMessage(raw string) *IRCMessage {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -78,14 +78,14 @@ func (t *IRCSession) parseMessage(raw string) *IRCMessage {
 	return m
 }
 
-func (m *IRCMessage) handle(t *IRCSession) {
-	if m == nil || t == nil {
+func (m *IRCMessage) handle(s *Session) {
+	if m == nil || s == nil {
 		return
 	}
 
 	// on ping commands only reply with a pong and exit the handler
 	if m.Command.Name == IRCMsgCmdPing {
-		t.SendCommand(string(IRCMsgCmdPong))
+		s.SendCommand(string(IRCMsgCmdPong))
 		return
 	}
 
@@ -93,15 +93,15 @@ func (m *IRCMessage) handle(t *IRCSession) {
 	if handleCallback == nil {
 		return
 	}
-	for _, c := range t.events[m.Command.Name] {
-		handleCallback(t, m, c)
+	for _, c := range s.events[m.Command.Name] {
+		handleCallback(s, m, c)
 	}
 
 	handleCallback = ircCallbackEventMap["*"]
 	if handleCallback == nil {
 		return
 	}
-	for _, c := range t.events["*"] {
-		handleCallback(t, m, c)
+	for _, c := range s.events["*"] {
+		handleCallback(s, m, c)
 	}
 }
