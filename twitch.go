@@ -37,7 +37,6 @@ type Session struct {
 	oauth        *oauth.Client
 
 	ircToken string
-	username string
 	ircConn  net.Conn
 	events   map[IRCMessageCommandName][]interface{}
 	eventMu  sync.Mutex
@@ -113,7 +112,8 @@ func (s *Session) SetIRC(ircToken string) *Session {
 	}
 
 	s.ircToken = ircToken
-	s.username = ""
+	s.events = make(map[IRCMessageCommandName][]interface{})
+	s.Prefix = "!"
 	return s
 }
 
@@ -194,14 +194,18 @@ const (
 	IRCMsgCmdUserList IRCMessageCommandName = "353"
 )
 
-// Connect actually starts the connection to twitch.
+// Connect actually starts the connection to the Twitch IRC server.
 func (s *Session) Connect() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if s.ircToken == "" {
+		return nil
+	}
 
 	if s.ircConn != nil {
 		return ErrAlreadyConnected
 	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	var err error
 	adress := fmt.Sprintf("%s:%d", IRCHost, IRCPort)
@@ -213,7 +217,7 @@ func (s *Session) Connect() error {
 
 	s.SendCommand("CAP REQ :twitch.tv/commands twitch.tv/membership twitch.tv/tags")
 	s.SendCommandf("PASS %s", s.ircToken)
-	s.SendCommandf("NICK %s", s.username)
+	s.SendCommand("NICK -")
 
 	if err = s.waitForInit(); err != nil {
 		s.ircConn.Close()
