@@ -13,7 +13,7 @@ import (
 
 const (
 	username = ""
-	ircToken = "" // Remember to never use your store your token in production code!
+	ircToken = "" // Remember to never store your token in production code!
 )
 
 func main() {
