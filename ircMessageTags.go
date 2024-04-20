@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// https://dev.twitch.tv/docs/irc/tags/
+// IRCMessageTags https://dev.twitch.tv/docs/irc/tags/
 type IRCMessageTags struct {
 	// Optional. The message includes this tag if the user was put in a timeout. The tag contains
 	// the duration of the timeout, in seconds.
