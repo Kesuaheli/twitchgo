@@ -97,7 +97,7 @@ func readAll(conn net.Conn) ([]byte, error) {
 
 func parseMessage(raw string) *IRCMessage {
 	if len(raw) == 0 {
-		return nil
+		return &IRCMessage{}
 	}
 
 	m := &IRCMessage{Raw: raw}
