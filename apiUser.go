@@ -53,6 +53,18 @@ type User struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// GetUser returns the Twitch user in the current access token.
+func (s *Session) GetUser() (*User, error) {
+
+	var userData rawUserData
+	err := s.requestHelper(http.MethodGet, "/users", nil, nil, &userData)
+	if err != nil {
+		return &User{}, fmt.Errorf("get users by id: %v", err)
+	}
+
+	return userData.Data[0], nil
+}
+
 // GetUsersByID gets all the Twitch users matching the given user IDs.
 func (s *Session) GetUsersByID(userIDs ...string) ([]*User, error) {
 	if len(userIDs) == 0 {

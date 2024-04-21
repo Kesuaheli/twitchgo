@@ -98,6 +98,15 @@ func (s *Session) SetAPI(clientID, clientSecret string) *Session {
 	return s
 }
 
+// SetAuthRefreshToken sets a custom refresh token to use for the API calls.
+func (s *Session) SetAuthRefreshToken(refreshToken string) *Session {
+	if s.oauth == nil {
+		panic("Session has no API auth")
+	}
+	s.oauth.SetRefreshToken(refreshToken)
+	return s
+}
+
 // SetIRC sets the token used for a connection to the Twitch IRC server. It will override the
 // existing token, if previously set. Setting ircToken to an empty string will result in not
 // connecting to the IRC server on the call to s.Connect. SetIRC will panic when s.Connect was
@@ -151,6 +160,8 @@ func (s *Session) Connect() error {
 
 // Close closes the connection to the Twitch IRC server.
 func (s *Session) Close() {
-	s.ircConn.Close()
+	if s.ircConn != nil {
+		s.ircConn.Close()
+	}
 	log.Print("Twitch connection closed!")
 }
