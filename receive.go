@@ -5,11 +5,66 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 )
 
-func (t *Twitch) listen() {
+// waitForInit waits up to 5 seconds for a login response from the Twitch IRC server.
+func waitForInit(s *Session) (err error) {
+	s.ircConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	defer s.ircConn.SetReadDeadline(time.Time{})
+
 	for {
-		buf, err := t.readAll()
+		var buf []byte
+		buf, err = readAll(s.ircConn)
+		if err != nil {
+			return err
+		}
+		for _, raw := range strings.Split(string(buf), "\r\n") {
+			m := parseMessage(raw)
+			if m.Command.Name == IRCMsgCmdGlobaluserstate {
+				return nil
+			} else if m.Command.Name == IRCMsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
+				return ErrInvalidToken
+			}
+		}
+	}
+}
+
+func parseInitMessage(s *Session, raw string) (byte, error) {
+	m := parseMessage(raw)
+	if m == nil {
+		return 0, nil
+	}
+	switch m.Command.Name {
+	case IRCMsgCmdCap:
+		return 1, nil
+	case "001":
+		return 2, nil
+	case "002":
+		return 4, nil
+	case "003":
+		return 8, nil
+	case "004":
+		return 16, nil
+	case "375":
+		return 32, nil
+	case "372":
+		return 64, nil
+	case IRCMsgCmdGlobaluserstate:
+		m.handle(s)
+		return 128, nil
+	default:
+		if m.Command.Name == IRCMsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
+			return 0, ErrInvalidToken
+		}
+		m.handle(s)
+		return 0, nil
+	}
+}
+
+func listen(s *Session) {
+	for {
+		buf, err := readAll(s.ircConn)
 		if errors.Is(err, net.ErrClosed) {
 			break
 		} else if err != nil {
@@ -17,16 +72,16 @@ func (t *Twitch) listen() {
 		}
 		msgs := strings.Split(string(buf), "\r\n")
 		for _, m := range msgs {
-			t.parseMessage(m).handle(t)
+			parseMessage(m).handle(s)
 		}
 	}
 }
 
-func (t *Twitch) readAll() ([]byte, error) {
+func readAll(conn net.Conn) ([]byte, error) {
 	buf := make([]byte, 0)
 	b := make([]byte, 1024)
 	for {
-		n, err := t.conn.Read(b)
+		n, err := conn.Read(b)
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -40,16 +95,16 @@ func (t *Twitch) readAll() ([]byte, error) {
 	return buf, nil
 }
 
-func (t *Twitch) parseMessage(raw string) *Message {
+func parseMessage(raw string) *IRCMessage {
 	if len(raw) == 0 {
-		return nil
+		return &IRCMessage{}
 	}
 
-	m := &Message{Raw: raw}
+	m := &IRCMessage{Raw: raw}
 
 	if raw[0] == '@' {
 		i := strings.Index(raw, " ")
-		m.Tags = ParseRawTags(raw[1:i])
+		m.Tags = ParseRawIRCTags(raw[1:i])
 		raw = raw[i+1:]
 	}
 
@@ -57,9 +112,9 @@ func (t *Twitch) parseMessage(raw string) *Message {
 		i := strings.Index(raw, " ")
 		source := strings.Split(raw[1:i], "!")
 		if len(source) == 2 {
-			m.Source = &User{Nickname: source[0], Host: source[0]}
+			m.Source = &IRCUser{Nickname: source[0], Host: source[0]}
 		} else {
-			m.Source = &User{Host: source[0]}
+			m.Source = &IRCUser{Host: source[0]}
 		}
 		raw = raw[i+1:]
 	}
@@ -67,7 +122,7 @@ func (t *Twitch) parseMessage(raw string) *Message {
 	data := strings.Split(raw, " :")
 	args := strings.Split(data[0], " ")
 
-	m.Command.Name = MessageCommandName(args[0])
+	m.Command.Name = IRCMessageCommandName(args[0])
 	if len(args) > 1 {
 		m.Command.Arguments = args[1:]
 	}
@@ -78,30 +133,30 @@ func (t *Twitch) parseMessage(raw string) *Message {
 	return m
 }
 
-func (m *Message) handle(t *Twitch) {
-	if m == nil || t == nil {
+func (m *IRCMessage) handle(s *Session) {
+	if m == nil || s == nil {
 		return
 	}
 
 	// on ping commands only reply with a pong and exit the handler
-	if m.Command.Name == MsgCmdPing {
-		t.SendCommand(string(MsgCmdPong))
+	if m.Command.Name == IRCMsgCmdPing {
+		s.SendCommand(string(IRCMsgCmdPong))
 		return
 	}
 
-	handleCallback := callbackEventMap[m.Command.Name]
+	handleCallback := ircCallbackEventMap[m.Command.Name]
 	if handleCallback == nil {
 		return
 	}
-	for _, c := range t.events[m.Command.Name] {
-		handleCallback(t, m, c)
+	for _, c := range s.events[m.Command.Name] {
+		handleCallback(s, m, c)
 	}
 
-	handleCallback = callbackEventMap["*"]
+	handleCallback = ircCallbackEventMap["*"]
 	if handleCallback == nil {
 		return
 	}
-	for _, c := range t.events["*"] {
-		handleCallback(t, m, c)
+	for _, c := range s.events["*"] {
+		handleCallback(s, m, c)
 	}
 }
