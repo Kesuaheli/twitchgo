@@ -53,7 +53,7 @@ func (s *Session) OnChannelCommandMessage(cmd string, ignoreCase bool, callback 
 	if ignoreCase {
 		cmd = strings.ToLower(cmd)
 	}
-	s.OnChannelMessage(func(s *Session, channel string, source *IRCUser, msg string) {
+	s.OnChannelMessage(func(s *Session, channel string, source *IRCUser, msg, msgID string, tags IRCMessageTags) {
 		args := strings.Split(msg, " ")
 		msgCommand := args[0]
 
@@ -80,7 +80,7 @@ func (s *Session) OnAny(callback IRCAnyCallback) {
 
 type IRCChannelJoinCallback func(s *Session, channel string, source *IRCUser)
 type IRCChannelLeaveCallback func(s *Session, channel string, source *IRCUser)
-type IRCChannelMessageCallback func(s *Session, channel string, source *IRCUser, msg string)
+type IRCChannelMessageCallback func(s *Session, channel string, source *IRCUser, msg, msgID string, tags IRCMessageTags)
 type IRCChannelCommandMessageCallback func(s *Session, channel string, source *IRCUser, args []string)
 type IRCGlobalUserStateCallback func(s *Session, userTags IRCMessageTags)
 type IRCRoomStateCallback func(s *Session, roomTags IRCMessageTags)
@@ -100,7 +100,7 @@ func init() {
 	}
 	ircCallbackEventMap[IRCMsgCmdPrivmsg] = func(s *Session, m *IRCMessage, c interface{}) {
 		if f, ok := c.(*IRCChannelMessageCallback); ok {
-			(*f)(s, m.Command.Arguments[0], m.Source, m.Command.Data)
+			(*f)(s, m.Command.Arguments[0], m.Source, m.Command.Data, m.Tags.ID, m.Tags)
 		}
 	}
 	ircCallbackEventMap[IRCMsgCmdGlobaluserstate] = func(s *Session, m *IRCMessage, c interface{}) {

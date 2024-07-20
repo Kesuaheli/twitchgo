@@ -45,6 +45,9 @@ func (s *Session) requestHelper(method, endpoint string, queryParams map[string]
 		return fmt.Errorf("expected a 2xx status code, but got '%s': %s", resp.Status, respData)
 	}
 
+	if result == nil {
+		return nil
+	}
 	return json.Unmarshal(respData, result)
 }
 

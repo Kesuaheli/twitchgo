@@ -40,9 +40,9 @@ func main() {
 	<-ctx.Done()
 }
 
-func ChannelMessage(t *twitchgo.Session, c string, u *twitchgo.IRCUser, m string) {
+func ChannelMessage(t *twitchgo.Session, c string, u *twitchgo.IRCUser, m, id string, tags twitchgo.IRCMessageTags) {
 	// Logging the message e.g. the user "username" writes the message "message" in the chat
 	// from user "channel":
 	// "[#channel] <username> message"
-	log.Printf("[%s] <%s> %s", c, u.Nickname, m)
+	log.Printf("[%s@%s] <%s> %s", c, id, u.Nickname, m)
 }

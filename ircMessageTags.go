@@ -302,6 +302,20 @@ type IRCMessageTags struct {
 	ReturningChatter bool `json:"returning-chatter"`
 }
 
+func (t IRCMessageTags) HasBadge(badge string) bool {
+	for _, badge := range t.Badges {
+		badgename, _, _ := strings.Cut(badge, "/")
+		if badgename == badge {
+			return true
+		}
+	}
+	return false
+}
+
+func (t IRCMessageTags) IsBroadcaster() bool {
+	return t.HasBadge("broadcaster")
+}
+
 func ParseRawIRCTags(raw string) IRCMessageTags {
 	var b []byte
 	b = append(b, '{')
