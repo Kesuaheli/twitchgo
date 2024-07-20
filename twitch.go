@@ -114,7 +114,7 @@ func (s *Session) SetAuthRefreshToken(refreshToken string) *Session {
 //
 // See also [Session.SetAPI] to update API credentials.
 func (s *Session) SetIRC(ircToken string) *Session {
-	if s.oauth != nil || s.ircConn != nil {
+	if s.ircConn != nil {
 		panic("Session already connected")
 	}
 

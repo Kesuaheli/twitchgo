@@ -59,7 +59,7 @@ func (s *Session) GetUser() (*User, error) {
 	var userData rawUserData
 	err := s.requestHelper(http.MethodGet, "/users", nil, nil, &userData)
 	if err != nil {
-		return &User{}, fmt.Errorf("get users by id: %v", err)
+		return &User{}, fmt.Errorf("get logged in users: %v", err)
 	}
 
 	return userData.Data[0], nil
