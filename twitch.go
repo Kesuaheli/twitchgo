@@ -35,7 +35,7 @@ type Session struct {
 	oauth        *oauth.Client
 
 	ircToken string
-	ircConn  net.Conn
+	ircConn  *net.TCPConn
 	events   map[IRCMessageCommandName][]interface{}
 	eventMu  sync.Mutex
 	Prefix   string
@@ -125,7 +125,7 @@ func (s *Session) SetIRC(ircToken string) *Session {
 }
 
 // Connect actually starts the connection to the Twitch IRC server.
-func (s *Session) Connect() error {
+func (s *Session) Connect() (err error) {
 	if s.ircToken == "" {
 		return nil
 	}
@@ -137,9 +137,13 @@ func (s *Session) Connect() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var err error
 	address := fmt.Sprintf("%s:%d", IRCHost, IRCPort)
-	s.ircConn, err = net.Dial("tcp", address)
+	raddr, err := net.ResolveTCPAddr("tcp", address)
+	if err != nil {
+		return err
+	}
+	log.Printf("Connecting to %v", raddr)
+	s.ircConn, err = net.DialTCP("tcp", nil, raddr)
 	if err != nil {
 		log.Printf("Dial failed: %+v", err)
 		return err
