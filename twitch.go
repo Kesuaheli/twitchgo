@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strings"
 	"sync"
-	"time"
+
+	"github.com/kesuaheli/twitchgo/oauth"
 )
 
 const (
+	baseURL = "https://api.twitch.tv/helix"
 	IRCHost = "irc.chat.twitch.tv"
 	IRCPort = 6667
 )
@@ -25,207 +26,146 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 )
 
-type Twitch struct {
-	sync.Mutex
+// Session is the instance for all Twitch events.
+type Session struct {
+	mu sync.Mutex
 
-	token    string
-	username string
-	conn     net.Conn
-	events   map[MessageCommandName][]interface{}
+	clientID     string
+	clientSecret string
+	oauth        *oauth.Client
+
+	ircToken string
+	ircConn  *net.TCPConn
+	events   map[IRCMessageCommandName][]interface{}
 	eventMu  sync.Mutex
 	Prefix   string
 }
 
-type Message struct {
-	Raw     string
-	Tags    MessageTags
-	Source  *User
-	Command MessageCommand
+// New creates a new Twitch instance for API and IRC connections. Can be used to register event
+// responses before connecting.
+//
+// Setting clientID or clientSecret to an empty string will result in not connecting to the Twitch
+// API on the call to s.Connect. Setting ircToken to an empty string will result in not connecting
+// to the IRC server on the call to s.Connect.
+//
+// See also [NewAPIOnly], [NewIRCOnly] to create sessions for only one connection type and
+// [Session.SetAPI], [Session.SetIRC] to update an existing Twitch session.
+func New(clientID, clientSecret, ircToken string) *Session {
+	return NewAPIOnly(clientID, clientSecret).SetIRC(ircToken)
 }
-type User struct {
-	Nickname string
-	Host     string
+
+// NewAPIOnly creates a new Twitch instance only for API connection. Can be used to register event
+// responses before connecting. Setting clientID or clientSecret to an empty string will result in
+// not connecting to the Twitch API on the call to s.Connect.
+//
+// See also [New], [NewIRCOnly] to create other session types and [Session.SetAPI],
+// [Session.SetIRC] to update an existing Twitch session.
+func NewAPIOnly(clientID, clientSecret string) *Session {
+	return (&Session{}).SetAPI(clientID, clientSecret)
 }
 
-type MessageCommand struct {
-	Name      MessageCommandName
-	Arguments []string
-	Data      string
+// NewIRCOnly creates a new Twitch instance only for IRC connection. Can be used to register event
+// responses before connecting. Setting ircToken to an empty string will result in not connecting to
+// the IRC server on the call to s.Connect.
+//
+// See also [New], [NewAPIOnly] to create other session types and [Session.SetAPI],
+// [Session.SetIRC] to update an existing Twitch session.
+func NewIRCOnly(ircToken string) *Session {
+	return (&Session{}).SetIRC(ircToken)
 }
-type MessageCommandName string
 
-const (
-	// Your bot sends this message to join a channel.
-	MsgCmdJoin MessageCommandName = "JOIN"
-	// Your bot sends this message to specify the bot’s nickname when authenticating with the Twitch
-	// IRC server.
-	MsgCmdNick MessageCommandName = "NICK"
-	// Your bot receives this message from the Twitch IRC server to indicate whether a command
-	// succeeded or failed. For example, a moderator tried to ban a user that was already banned.
-	MsgCmdNotice MessageCommandName = "NOTICE"
-	// Your bot sends this message to leave a channel.
-	//
-	// Your bot receives this message from the Twitch IRC server when a channel bans it.
-	MsgCmdPart MessageCommandName = "PART"
-	// Your bot sends this message to specify the bot’s password when authenticating with the Twitch
-	// IRC server.
-	MsgCmdPass MessageCommandName = "PASS"
-	// Your bot receives this message from the Twitch IRC server when the server wants to ensure
-	// that your bot is still alive and able to respond to the server’s messages.
-	MsgCmdPing MessageCommandName = "PING"
-	// Your bot sends this message in reply to the Twitch IRC server’s PING message.
-	MsgCmdPong MessageCommandName = "PONG"
-	// Your bot sends this message to post a chat message in the channel’s chat room.
-	//
-	// Your bot receives this message from the Twitch IRC server when a user posts a chat message in
-	// the chat room.
-	MsgCmdPrivmsg MessageCommandName = "PRIVMSG"
-
-	// Your bot receives this message from the Twitch IRC server when all messages are removed from
-	// the chat room, or all messages for a specific user are removed from the chat room.
-	MsgCmdClearchat MessageCommandName = "CLEARCHAT"
-	// Your bot receives this message from the Twitch IRC server when a specific message is removed
-	// from the chat room.
-	MsgCmdClearmsg MessageCommandName = "CLEARMSG"
-	// Your bot receives this message from the Twitch IRC server when a bot connects to the server.
-	MsgCmdGlobaluserstate MessageCommandName = "GLOBALUSERSTATE"
-	// Your bot receives this message from the Twitch IRC server when a channel starts or stops host
-	// mode.
-	MsgCmdHosttarget MessageCommandName = "HOSTTARGET"
-	// Your bot receives this message from the Twitch IRC server when the server needs to perform
-	// maintenance and is about to disconnect your bot.
-	MsgCmdReconnect MessageCommandName = "RECONNECT"
-	// Your bot receives this message from the Twitch IRC server when a bot joins a channel or a
-	// moderator changes the chat room’s chat settings.
-	MsgCmdRoomstate MessageCommandName = "ROOMSTATE"
-	// Your bot receives this message from the Twitch IRC server when events like user subscriptions
-	// occur.
-	MsgCmdUsernotice MessageCommandName = "USERNOTICE"
-	// Your bot receives this message from the Twitch IRC server when a user joins a channel or the
-	// bot sends a PRIVMSG message.
-	MsgCmdUserstate MessageCommandName = "USERSTATE"
-	// Your bot receives this message from the Twitch IRC server when a user sends a WHISPER
-	// message.
-	MsgCmdWhisper MessageCommandName = "WHISPER"
-	//
-	MsgCmdCap MessageCommandName = "CAP"
-	//
-	MsgCmdUserList MessageCommandName = "353"
-)
-
-// New creates a new Twitch instance but doesn't actuallay do anything. Can be used to register
-// event responses before connecting.
-// Start a connection with t.Connect()
-func New(username, token string) (t *Twitch) {
-	if username == "" {
-		username = "-"
+// SetAPI sets the credentials used for a connection to the Twitch API. It will override the
+// existing credentials, if previously set. Setting clientID or clientSecret to an empty string will
+// result in not connecting to the Twitch API on the call to s.Connect. SetAPI will panic when
+// s.Connect was already successfull.
+//
+// See also [Session.SetIRC] to update IRC credentials.
+func (s *Session) SetAPI(clientID, clientSecret string) *Session {
+	if s.oauth != nil || s.ircConn != nil {
+		panic("Session already connected")
 	}
-	t = &Twitch{
-		token:    token,
-		username: username,
-		events:   make(map[MessageCommandName][]interface{}),
-		Prefix:   "!",
-	}
-	return t
+
+	s.clientID = clientID
+	s.clientSecret = clientSecret
+
+	s.oauth = oauth.New(
+		"https://id.twitch.tv/oauth2/token",
+		clientID,
+		clientSecret,
+		"",
+	)
+
+	return s
 }
 
-// Connect actually starts the connection to twitch.
-func (t *Twitch) Connect() error {
-	t.Lock()
-	defer t.Unlock()
+// SetAuthRefreshToken sets a custom refresh token to use for the API calls.
+func (s *Session) SetAuthRefreshToken(refreshToken string) *Session {
+	if s.oauth == nil {
+		panic("Session has no API auth")
+	}
+	s.oauth.SetRefreshToken(refreshToken)
+	return s
+}
 
-	if t.conn != nil {
+// SetIRC sets the token used for a connection to the Twitch IRC server. It will override the
+// existing token, if previously set. Setting ircToken to an empty string will result in not
+// connecting to the IRC server on the call to s.Connect. SetIRC will panic when s.Connect was
+// already successfull.
+//
+// See also [Session.SetAPI] to update API credentials.
+func (s *Session) SetIRC(ircToken string) *Session {
+	if s.ircConn != nil {
+		panic("Session already connected")
+	}
+
+	s.ircToken = ircToken
+	s.events = make(map[IRCMessageCommandName][]interface{})
+	s.Prefix = "!"
+	return s
+}
+
+// Connect actually starts the connection to the Twitch IRC server.
+func (s *Session) Connect() (err error) {
+	if s.ircToken == "" {
+		return nil
+	}
+
+	if s.ircConn != nil {
 		return ErrAlreadyConnected
 	}
 
-	var err error
-	adress := fmt.Sprintf("%s:%d", IRCHost, IRCPort)
-	t.conn, err = net.Dial("tcp", adress)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	address := fmt.Sprintf("%s:%d", IRCHost, IRCPort)
+	raddr, err := net.ResolveTCPAddr("tcp", address)
+	if err != nil {
+		return err
+	}
+	log.Printf("Connecting to %v", raddr)
+	s.ircConn, err = net.DialTCP("tcp", nil, raddr)
 	if err != nil {
 		log.Printf("Dial failed: %+v", err)
 		return err
 	}
 
-	t.SendCommand("CAP REQ :twitch.tv/commands twitch.tv/membership twitch.tv/tags")
-	t.SendCommandf("PASS %s", t.token)
-	t.SendCommandf("NICK %s", t.username)
+	s.SendCommand("CAP REQ :twitch.tv/commands twitch.tv/membership twitch.tv/tags")
+	s.SendCommandf("PASS %s", s.ircToken)
+	s.SendCommand("NICK -")
 
-	if err = t.waitForInit(); err != nil {
-		t.conn.Close()
+	if err = waitForInit(s); err != nil {
+		s.ircConn.Close()
 		return err
 	}
 
-	go t.listen()
+	go listen(s)
 	return nil
 }
 
-func (t *Twitch) waitForInit() (err error) {
-	t.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	var checklist byte
-done:
-	for {
-		var buf []byte
-		buf, err = t.readAll()
-		if err != nil {
-			break
-		}
-		msgs := strings.Split(string(buf), "\r\n")
-		for _, raw := range msgs {
-			var check byte
-			check, err = t.parseInitMessage(raw)
-			checklist |= check
-			if err != nil || checklist == 255 {
-				break done
-			}
-		}
+// Close closes the connection to the Twitch IRC server.
+func (s *Session) Close() {
+	if s.ircConn != nil {
+		s.ircConn.Close()
 	}
-	t.conn.SetReadDeadline(time.Time{})
-	return err
-}
-
-func (t *Twitch) parseInitMessage(raw string) (byte, error) {
-	m := t.parseMessage(raw)
-	if m == nil {
-		return 0, nil
-	}
-	switch m.Command.Name {
-	case MsgCmdCap:
-		return 1, nil
-	case "001":
-		return 2, nil
-	case "002":
-		return 4, nil
-	case "003":
-		return 8, nil
-	case "004":
-		return 16, nil
-	case "375":
-		return 32, nil
-	case "372":
-		return 64, nil
-	case MsgCmdGlobaluserstate:
-		m.handle(t)
-		return 128, nil
-	default:
-		if m.Command.Name == MsgCmdNotice && m.Command.Data == "Improperly formatted auth" {
-			return 0, ErrInvalidToken
-		}
-		m.handle(t)
-		return 0, nil
-	}
-}
-
-func (t *Twitch) Close() {
-	t.conn.Close()
 	log.Print("Twitch connection closed!")
-}
-
-func (u *User) String() string {
-	if u == nil {
-		return "<nil User>"
-	}
-	if u.Nickname == "" {
-		return u.Host
-	}
-	return u.Nickname
 }

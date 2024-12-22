@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// https://dev.twitch.tv/docs/irc/tags/
-type MessageTags struct {
+// IRCMessageTags https://dev.twitch.tv/docs/irc/tags/
+type IRCMessageTags struct {
 	// Optional. The message includes this tag if the user was put in a timeout. The tag contains
 	// the duration of the timeout, in seconds.
 	BanDuration int `json:"ban-duration"`
@@ -302,33 +302,47 @@ type MessageTags struct {
 	ReturningChatter bool `json:"returning-chatter"`
 }
 
-func ParseRawTags(raw string) MessageTags {
+func (t IRCMessageTags) HasBadge(badge string) bool {
+	for _, badge := range t.Badges {
+		badgename, _, _ := strings.Cut(badge, "/")
+		if badgename == badge {
+			return true
+		}
+	}
+	return false
+}
+
+func (t IRCMessageTags) IsBroadcaster() bool {
+	return t.HasBadge("broadcaster")
+}
+
+func ParseRawIRCTags(raw string) IRCMessageTags {
 	var b []byte
 	b = append(b, '{')
 	for i, t := range strings.Split(raw, `;`) {
 		if i != 0 {
 			b = append(b, ',')
 		}
-		b = append(b, formatRawTag(t)...)
+		b = append(b, formatRawIRCTag(t)...)
 	}
 	b = append(b, '}')
-	t := MessageTags{}
+	t := IRCMessageTags{}
 	err := json.Unmarshal(b, &t)
 	if err != nil {
 		log.Printf("Failed to parse Tags err: %+v\nraw: %s\nformated: %s", err, raw, string(b))
-		return MessageTags{}
+		return IRCMessageTags{}
 	}
 	return t
 }
 
-func formatRawTag(raw string) []byte {
+func formatRawIRCTag(raw string) []byte {
 	var b []byte
 	tagPair := strings.Split(raw, "=")
 	if len(tagPair) != 2 {
 		return []byte(fmt.Sprintf("\"%s\":\"\"", raw))
 	}
 
-	var i MessageTags
+	var i IRCMessageTags
 	t := reflect.TypeOf(i)
 	found := false
 	for i := 0; i < t.NumField(); i++ {

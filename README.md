@@ -1,16 +1,16 @@
 # TwitchGO
 
-TwitchGO is an easy to use library for Twitch IRC Chat implemented in GO.
+TwitchGO is an easy to use library for Twitch API and IRC Chat implemented in GO.
 
 You can create a connection as simple as
 
 ```go
-bot := twitchgo.New("mybot", "mytoken")
+bot := twitchgo.New("myClientID", "myClientSecret", "myIRCToken")
 
 err := bot.Connect()
 ```
 
-Remember to never use your bots token in plain text!
+Remember to never use your bots secret and token in plain text!
 
 ### Development
 
