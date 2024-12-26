@@ -30,9 +30,10 @@ var (
 type Session struct {
 	mu sync.Mutex
 
-	clientID     string
-	clientSecret string
-	oauth        *oauth.Client
+	clientID      string
+	clientSecret  string
+	webhookSecret string
+	oauth         *oauth.Client
 
 	ircToken string
 	ircConn  *net.TCPConn
@@ -121,6 +122,13 @@ func (s *Session) SetIRC(ircToken string) *Session {
 	s.ircToken = ircToken
 	s.events = make(map[IRCMessageCommandName][]interface{})
 	s.Prefix = "!"
+	return s
+}
+
+// SetWebhookSecret sets the secret used for verifying webhook requests. It will override the
+// existing secret, if previously set.
+func (s *Session) SetWebhookSecret(secret string) *Session {
+	s.webhookSecret = secret
 	return s
 }
 
