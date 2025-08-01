@@ -49,19 +49,27 @@ func (s *Session) OnRoomState(callback IRCRoomStateCallback) {
 // command in a channel that you (the bot) already joined.
 // A command is defined by a prefix (usually "!"), e.g. the message "!foo bar" translates to the
 // command "foo" with the argument "bar".
+//
+// A special case is, when cmd is an empty string. In which case the callback will be called on
+// every command. Even if that command is an empty string. For example: the message "!foo bar" will
+// invoke the callback with the arguments "foo" and "bar", while "! foo bar" (a space directly
+// after the prefix) will do it with "", "foo" and "bar".
 func (s *Session) OnChannelCommandMessage(cmd string, ignoreCase bool, callback IRCChannelCommandMessageCallback) {
 	if ignoreCase {
 		cmd = strings.ToLower(cmd)
 	}
 	s.OnChannelMessage(func(s *Session, channel string, source *IRCUser, msg, msgID string, tags IRCMessageTags) {
-		args := strings.Split(msg, " ")
-		msgCommand := args[0]
-
-		msgCommand, hasPrefix := strings.CutPrefix(msgCommand, s.Prefix)
-		if !hasPrefix {
+		msg, ok := strings.CutPrefix(msg, s.Prefix)
+		if !ok || msg == "" {
 			return
 		}
+		args := strings.Split(msg, " ")
 
+		if cmd == "" {
+			callback(s, channel, source, args)
+		}
+
+		msgCommand := args[0]
 		if ignoreCase {
 			msgCommand = strings.ToLower(msgCommand)
 		}
