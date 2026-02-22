@@ -147,6 +147,9 @@ type IRCMessageTags struct {
 	//	An ID that uniquely identifies the top-level parent message of the reply thread that this
 	// message is replying to. The message does not include this tag if this message is not a reply.
 	ReplyThreadParentMsgID string `json:"reply-thread-parent-msg-id"`
+	// An ID that identifies the sender of the direct parent message. The message does not include
+	// this tag if this message is not a reply.
+	ReplyThreadParentUserID string `json:"reply-thread-parent-user-id"`
 	//	The login name of the sender of the top-level parent message. The message does not include
 	// this tag if this message is not a reply.
 	ReplyThreadParentUserLogin string `json:"reply-thread-parent-user-login"`
